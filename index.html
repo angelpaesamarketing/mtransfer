@@ -2333,16 +2333,18 @@ body{padding-top:0 !important;}
 .mt-show{
   position:relative;
   background:#FFFFFF;
+  height:100vh;      /* fallback: navegadores sin svh */
   height:100svh;
   /* la cabecera (72px, en flujo) se superpone al inicio: el showroom
      ocupa la ventana completa, igual que en la versión motion */
   margin-top:-72px;
 }
-body.mt-motion-show .mt-show{ height:340svh; }
+body.mt-motion-show .mt-show{ height:340vh; height:340svh; }
 
 .mt-show-pin{
   position:sticky;
   top:0;
+  height:100vh;
   height:100svh;
   min-height:640px;
   overflow:hidden;
@@ -2438,8 +2440,13 @@ body.mt-motion-show .mt-show{ height:340svh; }
   width:min(64vw, 1000px);
   aspect-ratio:3/2;
   will-change:transform,opacity;
+  backface-visibility:hidden;
   transform:translate(-50%,-50%);
   opacity:0;
+}
+/* fallback para navegadores sin aspect-ratio */
+@supports not (aspect-ratio: 3 / 2){
+  .mt-orbit-car{ height:calc(min(64vw, 1000px) * 0.6667); }
 }
 .mt-orbit-car[data-orbit="0"]{ opacity:1; }
 .mt-orbit-car img{
@@ -2448,15 +2455,15 @@ body.mt-motion-show .mt-show{ height:340svh; }
   display:block;
   margin:0;
   pointer-events:none;
-  filter:drop-shadow(0 26px 20px rgba(31,28,25,.16));
+  backface-visibility:hidden;
 }
 .mt-car-shadow{
   position:absolute;
   width:74%;height:11%;
   left:13%;bottom:7%;
   border-radius:50%;
-  background:rgba(31,28,25,.30);
-  filter:blur(22px);
+  background:rgba(31,28,25,.34);
+  filter:blur(20px);
   transform:scaleY(.55);
   pointer-events:none;
 }
@@ -2671,10 +2678,10 @@ body.mt-motion-show .mt-show{ height:340svh; }
   transition:color .2s;
 }
 .mt-motion-switch:hover{ color:var(--mt-gold2); }
-.mt-motion-switch:disabled{ cursor:default;opacity:.6; }
+.mt-motion-switch[aria-pressed="true"]{ color:var(--mt-gold2); }
 
 /* ── Movimiento reducido ── */
-body.mt-reduce-motion .mt-show{ height:100svh; }
+body.mt-reduce-motion .mt-show{ height:100vh; height:100svh; }
 body.mt-reduce-motion .mt-show-pin{ position:relative; }
 body.mt-reduce-motion .mt-orbit-stage{ cursor:default; }
 body.mt-reduce-motion .mt-scroll-track{ display:none; }
@@ -2705,8 +2712,8 @@ body.mt-reduce-motion .mt-car-shadow{ transition:none !important; }
   .mt-orbit-arrow{ margin:0 6px; }
 }
 @media (max-width:760px){
-  body.mt-motion-show .mt-show{ height:310svh; }
-  .mt-show-pin{ height:100svh;min-height:640px; }
+  body.mt-motion-show .mt-show{ height:310vh; height:310svh; }
+  .mt-show-pin{ height:100vh;height:100svh;min-height:640px; }
   .mt-show-heading{ top:17%; }
   .mt-show-heading .mt-show-eyebrow{ font-size:7px;letter-spacing:.22em; }
   .mt-show-title{ font-size:29vw !important;line-height:.95 !important;margin-top:16px !important; }
@@ -2736,6 +2743,15 @@ body.mt-reduce-motion .mt-car-shadow{ transition:none !important; }
      navega con los números o arrastrando el vehículo */
   .mt-orbit-arrow{ display:none; }
 }
+/* portátiles de 768 px de alto (lo más común en Windows): se sube la órbita
+   para que el coche no pise la ficha del vehículo */
+@media (max-height:830px) and (min-height:741px) and (min-width:761px){
+  .mt-show-heading{ top:13%; }
+  .mt-orbit-stage{ top:27%;height:45%; }
+  .mt-orbit-car{ width:58vw; }
+  .mt-show-details{ bottom:102px; }
+  .mt-show-claim h2{ font-size:52px !important; }
+}
 @media (max-height:740px) and (min-width:761px){
   .mt-show-heading{ top:16%; }
   .mt-show-title{ font-size:21vw !important; }
@@ -2751,11 +2767,12 @@ body.mt-reduce-motion .mt-car-shadow{ transition:none !important; }
   body.mt-motion-show .mt-show{ height:700px; }
   .mt-show-pin{ position:relative;height:700px; }
 }
+/* El estado por defecto (sin JS) ya es un hero estático de una ventana, así
+   que aquí no se fuerza nada: si el visitante activa las animaciones desde el
+   pie, deben funcionar aunque Windows tenga el movimiento reducido. */
 @media (prefers-reduced-motion:reduce){
-  body.mt-motion-show .mt-show{ height:100svh; }
-  .mt-show-pin{ position:relative; }
-  .mt-orbit-car{ will-change:auto; }
-  .mt-scroll-track i{ animation:none; }
+  body:not(.mt-motion-show) .mt-scroll-track i{ animation:none; }
+  body:not(.mt-motion-show) .mt-orbit-car{ will-change:auto; }
 }
 
 </style>
@@ -3734,12 +3751,22 @@ window.addEventListener('scroll', function() {
   var clamp = function (n, min, max) { return Math.max(min, Math.min(max, n)); };
 
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  var manualReduced = false;
+  /* null = seguir al sistema, true = animaciones forzadas, false = desactivadas.
+     En Windows es frecuente tener "Mostrar animaciones" apagado, así que el
+     visitante siempre puede activarlas desde el pie. */
+  var manualMotion = null;
+  try {
+    var saved = window.localStorage.getItem('mt-motion');
+    if (saved === 'on')  manualMotion = true;
+    if (saved === 'off') manualMotion = false;
+  } catch (e) {}
   var currentModel = 0, phase = 0, targetPhase = 0, frame = 0, lastFrame = 0;
   var startY = 0, range = 1;
   var pointerStart = null, dragging = false, pointerPhase = 0, pointerTravel = 0;
 
-  function motionOff() { return manualReduced || reducedMotion.matches; }
+  function motionOff() {
+    return manualMotion === null ? reducedMotion.matches : !manualMotion;
+  }
 
   /* Conmutador de movimiento en el pie */
   var motionButton = document.createElement('button');
@@ -3751,20 +3778,22 @@ window.addEventListener('scroll', function() {
   function setMotionPreference() {
     document.body.classList.toggle('mt-reduce-motion', motionOff());
     document.body.classList.toggle('mt-motion-show', !motionOff());
-    motionButton.textContent = reducedMotion.matches
-      ? 'Movimiento reducido (sistema)'
-      : (motionOff() ? 'Activar animaciones' : 'Reducir movimiento');
-    motionButton.disabled = reducedMotion.matches;
+    motionButton.textContent = motionOff() ? 'Activar animaciones' : 'Reducir movimiento';
     motionButton.setAttribute('aria-pressed', String(motionOff()));
     measure();
     if (motionOff()) { phase = currentModel; targetPhase = currentModel; render(); }
     else readScroll();
   }
   motionButton.addEventListener('click', function () {
-    manualReduced = !motionOff();
+    manualMotion = motionOff();
+    try { window.localStorage.setItem('mt-motion', manualMotion ? 'on' : 'off'); } catch (e) {}
     setMotionPreference();
   });
-  if (reducedMotion.addEventListener) reducedMotion.addEventListener('change', setMotionPreference);
+  if (reducedMotion.addEventListener) {
+    reducedMotion.addEventListener('change', function () {
+      if (manualMotion === null) setMotionPreference();
+    });
+  }
 
   function measure() {
     startY = showroom.getBoundingClientRect().top + window.scrollY;
@@ -3808,7 +3837,6 @@ window.addEventListener('scroll', function() {
         ' rotateY(' + turn.toFixed(2) + 'deg) rotateZ(' + bank.toFixed(2) + 'deg) scale(' + scale.toFixed(4) + ')';
       car.style.opacity = opacity.toFixed(3);
       car.style.zIndex  = String(Math.round(front * 20) + 2);
-      car.style.filter  = motionOff() ? 'none' : 'saturate(' + (0.55 + 0.45 * front).toFixed(2) + ')';
       var shadow = car.firstElementChild;
       if (shadow) shadow.style.opacity = (0.12 + 0.88 * front).toFixed(2);
     });
