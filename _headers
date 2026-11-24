@@ -11,3 +11,20 @@
 
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
+
+# Maquetas de revisión: fuera del índice de Google y sin cachear
+/plata
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
+/plata/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
+/dorado
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
+
+/dorado/*
+  Cache-Control: public, max-age=0, must-revalidate
+  X-Robots-Tag: noindex, nofollow
